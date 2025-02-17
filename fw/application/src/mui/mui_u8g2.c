@@ -100,13 +100,21 @@ static ret_code_t pwm_init(void) {
     if (err_code != NRF_SUCCESS) {
         return err_code;
     }
-
+    // 从设置中读取保存的背光值
     settings_data_t *p_settings = settings_get_data();
-    app_pwm_duty_t init_duty = p_settings->lcd_backlight <= 100 ? p_settings->lcd_backlight : 0;
-    NRF_LOG_INFO("init bl = %d", init_duty);
-    if (init_duty > 0) {
+    uint8_t saved_value = p_settings->lcd_backlight;
+    // 将保存的显示值映射到实际亮度范围
+    uint8_t actual_value = (saved_value * 10) / 100;
+    
+    if (saved_value > 0) {
+         // 先启用 PWM
         app_pwm_enable(&pwm1);
-        while (app_pwm_channel_duty_set(&pwm1, 0, init_duty) == NRF_ERROR_BUSY)
+
+        // 将保存的显示值(0-100)映射到实际亮度范围(0-10)
+        uint8_t actual_value = (saved_value * 10) / 100;
+        
+        // 使用映射后的实际值
+        while (app_pwm_channel_duty_set(&pwm1, 0, actual_value) == NRF_ERROR_BUSY)
             ;
     }
 
@@ -220,9 +228,10 @@ void mui_u8g2_deinit(u8g2_t *p_u8g2) {
     u8g2_SetPowerSave(p_u8g2, 1);
 
 #ifdef LCD_SCREEN
-    mui_u8g2_set_backlight_level(0);
-    nrf_gpio_pin_clear(LCD_BL_PIN);
-    nrf_gpio_cfg_default(LCD_BL_PIN);
+// 注释掉这些行，防止关机时清除背光设置
+    //mui_u8g2_set_backlight_level(0);
+    //nrf_gpio_pin_clear(LCD_BL_PIN);
+    //nrf_gpio_cfg_default(LCD_BL_PIN);
 #endif
 }
 
@@ -235,14 +244,21 @@ void mui_u8g2_set_backlight_level(uint8_t value) {
     if (value == 0) {
         app_pwm_disable(&pwm1);
     } else {
+        // 将0-100的值映射到0-10的实际亮度范围
+        uint8_t actual_value = (value * 10) / 100;
         if (pwm1.p_cb->state != NRFX_DRV_STATE_POWERED_ON) {
             app_pwm_enable(&pwm1);
         }
-        while (app_pwm_channel_duty_set(&pwm1, 0, value) == NRF_ERROR_BUSY)
+        while (app_pwm_channel_duty_set(&pwm1, 0, actual_value) == NRF_ERROR_BUSY)
             ;
     }
+    settings_data_t *p_settings = settings_get_data();
+    p_settings->lcd_backlight = value;  // 保存显示值而不是实际值
+    settings_save();  // 保存设置到Flash
 }
-int8_t mui_u8g2_get_backlight_level(void) { return (int8_t)app_pwm_channel_duty_get(&pwm1, 0); }
+int8_t mui_u8g2_get_backlight_level(void) { // 将实际值映射回显示值
+    uint8_t actual_value = app_pwm_channel_duty_get(&pwm1, 0);
+    return (int8_t)((actual_value * 100) / 10); }
 
 #endif
 

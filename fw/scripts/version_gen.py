@@ -83,7 +83,8 @@ class Main(object):
                 "TARGET": 0,
             }
         )
-
+        # 手动修改版本号
+        os.environ["FW_VERSION"] = "1.2.3"
         if current_info["VERSION"] == 'unknown':
             if "FW_VERSION" in os.environ:
                 current_info["VERSION"] = os.environ["FW_VERSION"]
